@@ -3,29 +3,39 @@ import shutil
 from PIL import Image
 import argparse
 
-def check_resolution(file_path):
-    """Check if an image file has both horizontal and vertical resolution of 96 DPI."""
+def get_bit_depth(file_path):
+    """Get the bit depth of an image file."""
     try:
         with Image.open(file_path) as img:
-            # Get DPI information
-            if 'dpi' in img.info:
-                dpi = img.info['dpi']
-                horizontal_dpi, vertical_dpi = dpi
-                print(f"File: {file_path} - Resolution: {horizontal_dpi}x{vertical_dpi} DPI")
-                # Check if both horizontal and vertical resolution are 96 DPI
-                return horizontal_dpi == 72 and vertical_dpi == 72
+            # Check the bit depth based on image mode and bit depth
+            if img.mode == 'RGB' and getattr(img, 'bits', 8) == 32:
+                return 96  # RGB with 32 bits per channel = 96 bit depth
+            elif img.mode == 'RGBA' and getattr(img, 'bits', 8) == 24:
+                return 96  # RGBA with 24 bits per channel = 96 bit depth
+            elif hasattr(img, 'bit_depth'):
+                return img.bit_depth
             else:
-                print(f"No DPI information found for {file_path}")
-                return False
+                # Common bit depths per channel based on mode
+                mode_to_bits = {
+                    '1': 1,     # 1-bit per pixel
+                    'L': 8,     # 8-bit grayscale
+                    'P': 8,     # 8-bit palette
+                    'RGB': 24,  # 3x8-bit RGB
+                    'RGBA': 32, # 4x8-bit RGBA
+                    'CMYK': 32, # 4x8-bit CMYK
+                    'YCbCr': 24,# 3x8-bit YCbCr
+                    'I': 32,    # 32-bit integer
+                    'F': 32,    # 32-bit float
+                }
+                return mode_to_bits.get(img.mode, 0)
     except Exception as e:
         print(f"Error reading {file_path}: {e}")
-        return False
+        return 0
 
 def process_files(source_dir, dest_dir):
     """
     Process files in source_dir and its subdirectories.
-    Copy files with 96 DPI resolution (both horizontal and vertical) 
-    to dest_dir in a folder named after their parent folder.
+    Copy files with bit depth 96 to dest_dir in a folder named after their parent folder.
     """
     # Create destination directory if it doesn't exist
     if not os.path.exists(dest_dir):
@@ -43,8 +53,10 @@ def process_files(source_dir, dest_dir):
             if not file.lower().endswith(('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')):
                 continue
             
-            # Check resolution
-            if check_resolution(file_path):
+            # Check bit depth
+            bit_depth = get_bit_depth(file_path)
+            
+            if bit_depth == 96:
                 # Get parent folder name
                 parent_folder = os.path.basename(root)
                 
@@ -60,10 +72,10 @@ def process_files(source_dir, dest_dir):
                 print(f"Copied {file_path} to {dest_file}")
                 processed_count += 1
     
-    print(f"Finished processing. Copied {processed_count} files with 96 DPI resolution.")
+    print(f"Finished processing. Copied {processed_count} files with 96-bit depth.")
 
 def main():
-     #Setup command line arguments
+    # Setup command line arguments
     parser = argparse.ArgumentParser(description='Copy files with 96-bit depth to specified destination.')
     parser.add_argument('source_dir', help='Source directory to search for files')
     parser.add_argument('dest_dir', help='Destination directory to copy files to')
